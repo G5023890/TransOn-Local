@@ -1,0 +1,68 @@
+name: TransOnLocal
+options:
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+targets:
+  TransOn Local:
+    type: application
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Sources/TransOnLocal
+    info:
+      path: Config/TransOnLocal-Info.plist
+      properties:
+        CFBundleDisplayName: TransOn Local
+        CFBundleName: TransOn Local
+        CFBundleIconFile: AppIcon
+        LSMinimumSystemVersion: "26.0"
+        LSUIElement: true
+        NSPrincipalClass: NSApplication
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.grigorym.TransOnLocal
+        PRODUCT_NAME: TransOn Local
+        EXECUTABLE_NAME: TransOn Local
+        INFOPLIST_FILE: Config/TransOnLocal-Info.plist
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: Apple Development
+        DEVELOPMENT_TEAM: 8FJN73UDTT
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: Config/TransOnLocal.entitlements
+    entitlements:
+      path: Config/TransOnLocal.entitlements
+    dependencies:
+      - target: TransOnLocalHelper
+    postBuildScripts:
+      - name: Embed TransOn Local Helper
+        script: |
+          set -euo pipefail
+          HELPER_SOURCE="$BUILT_PRODUCTS_DIR/TransOnLocalHelper"
+          HELPER_DEST="$TARGET_BUILD_DIR/$WRAPPER_NAME/Contents/MacOS/TransOnLocalHelper"
+          if [ -f "$HELPER_SOURCE" ]; then
+            mkdir -p "$(dirname "$HELPER_DEST")"
+            ditto "$HELPER_SOURCE" "$HELPER_DEST"
+            chmod +x "$HELPER_DEST"
+          fi
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/MacOS/TransOnLocalHelper
+  TransOnLocalHelper:
+    type: tool
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Sources/TransOnLocalHelper
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.grigorym.TransOnLocal.Helper
+        PRODUCT_NAME: TransOnLocalHelper
+        EXECUTABLE_NAME: TransOnLocalHelper
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: Apple Development
+        DEVELOPMENT_TEAM: 8FJN73UDTT
+        ENABLE_HARDENED_RUNTIME: YES
+        OTHER_LDFLAGS: $(inherited) -framework NaturalLanguage
