@@ -42,18 +42,25 @@ final class HelperClient {
         let stdin = Pipe()
         let stdout = Pipe()
         let stderr = Pipe()
+        let outputCollector = PipeCollector(pipe: stdout)
+        let errorCollector = PipeCollector(pipe: stderr)
         process.standardInput = stdin
         process.standardOutput = stdout
         process.standardError = stderr
 
         try process.run()
+        outputCollector.start()
+        errorCollector.start()
+
         stdin.fileHandleForWriting.write(input)
         stdin.fileHandleForWriting.closeFile()
         process.waitUntilExit()
+        outputCollector.stop()
+        errorCollector.stop()
 
-        let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
+        let outputData = outputCollector.dataValue
         if outputData.isEmpty {
-            let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
+            let errorData = errorCollector.dataValue
             let message = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
             throw HelperClientError.helperFailure(message?.isEmpty == false ? message! : "The helper produced no output.")
         }
@@ -78,6 +85,41 @@ final class HelperClient {
         }
 
         return nil
+    }
+}
+
+private final class PipeCollector {
+    private let pipe: Pipe
+    private let lock = NSLock()
+    private var data = Data()
+
+    init(pipe: Pipe) {
+        self.pipe = pipe
+    }
+
+    var dataValue: Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
+    }
+
+    func start() {
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            self?.lock.lock()
+            self?.data.append(chunk)
+            self?.lock.unlock()
+        }
+    }
+
+    func stop() {
+        pipe.fileHandleForReading.readabilityHandler = nil
+        let remaining = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard !remaining.isEmpty else { return }
+        lock.lock()
+        data.append(remaining)
+        lock.unlock()
     }
 }
 

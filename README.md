@@ -1,8 +1,21 @@
 # TransOn Local
 
-TransOn Local is a separate macOS menu bar app for local GGUF translation. It uses a helper process to prepare `llama.cpp`, download a GGUF model, and run translation with `llama-cli`.
+TransOn Local is a native macOS menu bar app for fully local text translation with GGUF models. It is designed for Apple Silicon and Intel Macs and uses a bundled universal `llama.cpp` runtime.
 
-Default model: `GemmaX2-28-9B-v0.2.Q8_0.gguf` from `mradermacher/GemmaX2-28-9B-v0.2-GGUF`.
+The app runs translation locally through `llama-server` when available, so the model is loaded once and reused between translations. `llama-completion` remains bundled as a fallback runtime.
+
+## What Is Bundled
+
+The app bundle includes:
+
+- `llama-server`
+- `llama-cli`
+- `llama-completion`
+- required `llama.cpp` / `ggml` dynamic libraries
+- Metal backend support
+- universal `arm64` + `x86_64` binaries
+
+The app bundle does not include `.gguf` model files. Models are downloaded from inside the app after installation.
 
 Runtime data is stored in:
 
@@ -10,27 +23,100 @@ Runtime data is stored in:
 ~/Library/Application Support/com.grigorym.TransOnLocal/
 ```
 
-## Build
+## Fresh Mac Requirements
+
+On a target Mac, TransOn Local does not require:
+
+- Xcode
+- Xcode Command Line Tools
+- Homebrew
+- `git`
+- `cmake`
+- development libraries
+
+Internet access is required for the first model download.
+
+## First Run
+
+1. Install `TransOn Local.app` or the signed `.pkg`.
+2. Open TransOn Local.
+3. Choose `Prepare / Update Model`.
+4. The app copies the bundled runtime into Application Support and downloads the selected GGUF model.
+5. Select text in another app and trigger translation with the configured hotkey.
+
+The translation overlay shows only the translated text. The window title shows the app name, target language, and elapsed translation time, for example:
+
+```text
+TransOn Local - Russian (1m 12s)
+```
+
+## Default Model
+
+Default model:
+
+```text
+GemmaX2-28-9B-v0.2.Q8_0.gguf
+```
+
+Source:
+
+```text
+mradermacher/GemmaX2-28-9B-v0.2-GGUF
+```
+
+Other quantized variants can be selected in the app.
+
+## Build For Development
+
+Generate the Xcode project and build:
 
 ```sh
 xcodegen generate
 xcodebuild -project TransOnLocal.xcodeproj -scheme "TransOn Local" -configuration Debug build
 ```
 
-Use `scripts/build_and_install_app.sh` to build and install the app into `/Applications` once the generated Xcode project exists.
-
-## Installer
-
-Create a clean installer package for a fresh Mac:
+Build and install into `/Applications`:
 
 ```sh
+./scripts/build_and_install_app.sh
+```
+
+## Build Installer
+
+Create a signed and notarized installer package:
+
+```sh
+APP_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+PKG_SIGN_IDENTITY="Developer ID Installer: Your Name (TEAMID)" \
+NOTARY_PROFILE="transon-notary" \
 ./scripts/package_installer.sh
 ```
 
-The package is written to `dist/TransOn Local-0.1.0-Installer.pkg`. It installs only the app into `/Applications`. On the target Mac, open the app and choose `Prepare / Update Model` to build `llama.cpp` and download the selected GGUF model.
+The package is written to:
 
-Before first preparation on a fresh Mac, check dependencies:
+```text
+dist/TransOn Local-0.1.0-Installer.pkg
+```
+
+The installer places `TransOn Local.app` in `/Applications`. The app contains the bundled universal runtime, but models are still downloaded on first use.
+
+Before packaging for other Macs, create the notary profile once:
 
 ```sh
-./scripts/check_fresh_mac_requirements.sh
+xcrun notarytool store-credentials transon-notary
 ```
+
+## Verification
+
+Useful checks after packaging:
+
+```sh
+lipo -info "/Applications/TransOn Local.app/Contents/MacOS/TransOn Local"
+lipo -info "/Applications/TransOn Local.app/Contents/MacOS/TransOnLocalHelper"
+lipo -info "/Applications/TransOn Local.app/Contents/Resources/Runtime/llama.cpp/build/bin/llama-server"
+codesign --verify --deep --strict --verbose=2 "/Applications/TransOn Local.app"
+pkgutil --check-signature "dist/TransOn Local-0.1.0-Installer.pkg"
+spctl -a -vvv -t install "dist/TransOn Local-0.1.0-Installer.pkg"
+```
+
+The runtime should not link against Homebrew libraries such as OpenSSL. It should use bundled `llama.cpp` libraries and system frameworks only.

@@ -120,7 +120,14 @@ if [[ ! -d "$BUILT_APP" ]]; then
   exit 1
 fi
 
+BUILT_HELPER="$DERIVED_DATA_PATH/Build/Products/${CONFIGURATION}/TransOnLocalHelper"
 HELPER_PATH="$BUILT_APP/Contents/MacOS/TransOnLocalHelper"
+if [[ -x "$BUILT_HELPER" ]]; then
+  mkdir -p "$(dirname "$HELPER_PATH")"
+  /usr/bin/ditto --norsrc "$BUILT_HELPER" "$HELPER_PATH"
+  chmod +x "$HELPER_PATH"
+fi
+
 if [[ ! -x "$HELPER_PATH" ]]; then
   echo "Embedded helper not found: $HELPER_PATH" >&2
   exit 1

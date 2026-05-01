@@ -13,6 +13,7 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: Sources/TransOnLocal
+      - path: Resources
     info:
       path: Config/TransOnLocal-Info.plist
       properties:
@@ -30,7 +31,7 @@ targets:
         INFOPLIST_FILE: Config/TransOnLocal-Info.plist
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: Apple Development
-        DEVELOPMENT_TEAM: 8FJN73UDTT
+        DEVELOPMENT_TEAM: 9FP39GTDT5
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: Config/TransOnLocal.entitlements
     entitlements:
@@ -63,6 +64,6 @@ targets:
         EXECUTABLE_NAME: TransOnLocalHelper
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: Apple Development
-        DEVELOPMENT_TEAM: 8FJN73UDTT
+        DEVELOPMENT_TEAM: 9FP39GTDT5
         ENABLE_HARDENED_RUNTIME: YES
         OTHER_LDFLAGS: $(inherited) -framework NaturalLanguage

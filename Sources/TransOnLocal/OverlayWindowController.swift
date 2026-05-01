@@ -7,11 +7,12 @@ final class OverlayWindowController {
     private let frameAutosaveName = "TransOnLocalTranslationOverlayFrame"
 
     func showLoading(targetLanguage: String) {
-        showContent(OverlayView(state: .loading), title: "TransOn Local - \(targetLanguage)")
+        showContent(OverlayView(state: .loading(targetLanguage: targetLanguage)), title: "TransOn Local")
     }
 
-    func show(text: String, targetLanguage: String) {
-        showContent(OverlayView(state: .result(text)), title: "TransOn Local - \(targetLanguage)")
+    func show(text: String, targetLanguage: String, duration: TimeInterval) {
+        let title = "\(targetLanguage) (\(Self.formatDuration(duration)))"
+        showContent(OverlayView(state: .result(text: text)), title: "TransOn Local - \(title)")
     }
 
     func showError(_ message: String) {
@@ -54,6 +55,16 @@ final class OverlayWindowController {
         self.panel = panel
         return panel
     }
+
+    private static func formatDuration(_ duration: TimeInterval) -> String {
+        if duration < 60 {
+            return String(format: "%.1fs", duration)
+        }
+
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return "\(minutes)m \(seconds)s"
+    }
 }
 
 struct OverlayView: View {
@@ -62,8 +73,11 @@ struct OverlayView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             switch state {
-            case .loading:
+            case .loading(let targetLanguage):
                 VStack(alignment: .center, spacing: 16) {
+                    Text(targetLanguage)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     ProgressView()
                         .controlSize(.large)
                     Text("Translating...")
@@ -101,7 +115,7 @@ struct OverlayView: View {
 }
 
 enum OverlayState {
-    case loading
-    case result(String)
+    case loading(targetLanguage: String)
+    case result(text: String)
     case error(String)
 }

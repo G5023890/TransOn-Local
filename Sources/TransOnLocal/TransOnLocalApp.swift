@@ -94,7 +94,7 @@ final class AppController: ObservableObject {
             )
             let result = try await self.helper.translate(request: request, modelID: self.selectedModelID)
             self.lastResult = result
-            self.overlay.show(text: result.translatedText, targetLanguage: self.targetLanguage)
+            self.overlay.show(text: result.translatedText, targetLanguage: self.targetLanguage, duration: result.duration)
         }
     }
 

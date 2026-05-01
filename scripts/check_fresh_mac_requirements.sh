@@ -1,38 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+APP_PATH="${APP_PATH:-/Applications/TransOn Local.app}"
+HELPER_PATH="$APP_PATH/Contents/MacOS/TransOnLocalHelper"
+RUNTIME_PATH="$APP_PATH/Contents/Resources/Runtime/llama.cpp/build/bin/llama-completion"
+
 missing=0
 
-check_tool() {
-  local tool="$1"
-  if command -v "$tool" >/dev/null 2>&1; then
-    echo "OK: $tool -> $(command -v "$tool")"
+check_path() {
+  local label="$1"
+  local path="$2"
+  if [[ -e "$path" ]]; then
+    echo "OK: $label -> $path"
   else
-    echo "MISSING: $tool"
+    echo "MISSING: $label -> $path"
     missing=1
   fi
 }
 
-echo "TransOn Local fresh Mac requirements"
-echo
-check_tool git
-check_tool cmake
-check_tool xcodebuild
+check_executable() {
+  local label="$1"
+  local path="$2"
+  if [[ -x "$path" ]]; then
+    echo "OK: $label -> $path"
+  else
+    echo "MISSING: $label -> $path"
+    missing=1
+  fi
+}
 
-if ! xcode-select -p >/dev/null 2>&1; then
-  echo "MISSING: Xcode Command Line Tools"
-  missing=1
-else
-  echo "OK: Xcode tools -> $(xcode-select -p)"
-fi
+echo "TransOn Local fresh Mac runtime check"
+echo
+check_path "App" "$APP_PATH"
+check_executable "Helper" "$HELPER_PATH"
+check_executable "Bundled llama runtime" "$RUNTIME_PATH"
 
 echo
+echo "Not required on the target Mac: Xcode, Command Line Tools, Homebrew, git, cmake."
+echo "Internet access is required for the first model download."
+echo
+
 if [[ "$missing" -eq 0 ]]; then
   echo "Ready. Open TransOn Local and choose Prepare / Update Model."
 else
-  echo "Install missing tools before Prepare / Update Model."
-  echo "Xcode Command Line Tools: xcode-select --install"
-  echo "cmake: install with Homebrew or another trusted package manager."
+  echo "Install the signed TransOn Local package, then run this check again."
 fi
 
 exit "$missing"
