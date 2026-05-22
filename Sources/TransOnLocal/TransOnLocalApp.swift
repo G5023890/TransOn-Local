@@ -101,6 +101,13 @@ final class AppController: ObservableObject {
         }
     }
 
+    func repairModelMetadata() {
+        runWork(.maintenance) {
+            self.updateCheck = try await self.helper.repairModelMetadata(modelID: self.selectedModelID)
+            self.status = try await self.helper.status()
+        }
+    }
+
     func updateSelectedModel() {
         runWork(.maintenance) {
             self.status = try await self.helper.updateModel(modelID: self.selectedModelID)

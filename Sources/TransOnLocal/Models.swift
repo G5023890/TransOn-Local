@@ -134,6 +134,7 @@ enum HelperAction: String, Codable {
     case prepareRuntime
     case downloadModel
     case checkUpdates
+    case repairModelMetadata
     case updateModel
     case translate
     case clearCache

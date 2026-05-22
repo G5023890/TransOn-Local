@@ -40,6 +40,9 @@ private final class TransOnLocalHelper {
         case .checkUpdates:
             let updates = manager.checkUpdates(id: request.modelID ?? ModelCatalog.defaultModel.id)
             return HelperResponse(ok: true, status: manager.status(), result: nil, updates: updates, error: nil)
+        case .repairModelMetadata:
+            let updates = try manager.repairModelMetadata(id: request.modelID ?? ModelCatalog.defaultModel.id)
+            return HelperResponse(ok: true, status: manager.status(), result: nil, updates: updates, error: nil)
         case .updateModel:
             try manager.updateModel(id: request.modelID ?? ModelCatalog.defaultModel.id)
             return HelperResponse(ok: true, status: manager.status(), result: nil, updates: nil, error: nil)
@@ -601,7 +604,7 @@ private final class RuntimeManager {
         let bundledHasServer = bundledLlamaBinDirectory
             .map { fileManager.isExecutableFile(atPath: $0.appendingPathComponent("llama-server").path) } ?? false
         let runtimeReady = installedRuntimeIsReady(bundledHasServer: bundledHasServer)
-        if runtimeReady && !force {
+        if runtimeReady && (!force || bundledLlamaBinDirectory == nil) {
             return
         }
 
@@ -1150,6 +1153,70 @@ private final class RuntimeManager {
             summary: "Up to date",
             detail: "\(model.displayName) \(model.quant) matches remote metadata."
         )
+    }
+
+    func repairModelMetadata(id: String) throws -> UpdateCheckResult {
+        ensureRootDirectories()
+        let checkedAt = Date()
+
+        guard let model = ModelCatalog.model(id: id) else {
+            return updateResult(
+                checkedAt: checkedAt,
+                modelStatus: UpdateComponentStatus(
+                    component: .model,
+                    status: .checkFailed,
+                    summary: "Check failed",
+                    detail: "Unknown model: \(id)"
+                )
+            )
+        }
+
+        guard hasDownloadedModel(model) else {
+            return updateResult(
+                checkedAt: checkedAt,
+                modelStatus: UpdateComponentStatus(
+                    component: .model,
+                    status: .notDownloaded,
+                    summary: "Not downloaded",
+                    detail: "\(model.displayName) \(model.quant) is not installed."
+                )
+            )
+        }
+
+        var remoteMetadataByFile: [String: RemoteModelFileMetadata] = [:]
+        for file in model.files {
+            guard let url = URL(string: file.downloadURL) else {
+                return updateResult(
+                    checkedAt: checkedAt,
+                    modelStatus: UpdateComponentStatus(component: .model, status: .checkFailed, summary: "Check failed", detail: "Invalid model URL for \(file.fileName).")
+                )
+            }
+            guard let remote = remoteFileMetadata(url: url) else {
+                return updateResult(
+                    checkedAt: checkedAt,
+                    modelStatus: UpdateComponentStatus(component: .model, status: .checkFailed, summary: "Check failed", detail: "Could not read remote metadata for \(file.fileName).")
+                )
+            }
+
+            let localURL = modelDirectory.appendingPathComponent(file.fileName)
+            let localBytes = Int64(fileSize(at: localURL))
+            if let remoteBytes = remote.contentLength, remoteBytes > 0, localBytes != remoteBytes {
+                return updateResult(
+                    checkedAt: checkedAt,
+                    modelStatus: UpdateComponentStatus(component: .model, status: .updateAvailable, summary: "Update available", detail: "\(file.fileName) local size does not match remote metadata.")
+                )
+            }
+            remoteMetadataByFile[file.fileName] = remote
+        }
+
+        saveModelMetadata(model, remoteMetadataByFile: remoteMetadataByFile)
+        guard let metadata = loadModelMetadata(for: model) else {
+            return updateResult(
+                checkedAt: checkedAt,
+                modelStatus: UpdateComponentStatus(component: .model, status: .checkFailed, summary: "Check failed", detail: "Could not save local model metadata.")
+            )
+        }
+        return updateResult(checkedAt: Date(), modelStatus: compareModelMetadata(model, local: metadata))
     }
 
     private func saveModelMetadata(_ model: ModelCatalogEntry, remoteMetadataByFile: [String: RemoteModelFileMetadata]) {
@@ -1926,6 +1993,7 @@ private enum HelperAction: String, Codable {
     case prepareRuntime
     case downloadModel
     case checkUpdates
+    case repairModelMetadata
     case updateModel
     case translate
     case clearCache

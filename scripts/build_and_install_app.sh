@@ -133,6 +133,15 @@ if [[ ! -x "$HELPER_PATH" ]]; then
   exit 1
 fi
 
+BUNDLED_RUNTIME_SOURCE="${BUNDLED_RUNTIME_SOURCE:-Build/BundledRuntime}"
+RUNTIME_DEST="$BUILT_APP/Contents/Resources/Runtime"
+if [[ -d "$BUNDLED_RUNTIME_SOURCE/llama.cpp/build/bin" ]]; then
+  rm -rf "$RUNTIME_DEST"
+  mkdir -p "$(dirname "$RUNTIME_DEST")"
+  /usr/bin/ditto --norsrc "$BUNDLED_RUNTIME_SOURCE" "$RUNTIME_DEST"
+  find "$RUNTIME_DEST/llama.cpp/build/bin" -type f -perm +111 -exec chmod +x {} \; 2>/dev/null || true
+fi
+
 xattr -c "$BUILT_APP" 2>/dev/null || true
 xattr -cr "$BUILT_APP" 2>/dev/null || true
 

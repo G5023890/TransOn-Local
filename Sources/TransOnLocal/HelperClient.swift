@@ -23,6 +23,14 @@ final class HelperClient {
         return updates
     }
 
+    func repairModelMetadata(modelID: String) async throws -> UpdateCheckResult {
+        let response = try await perform(action: .repairModelMetadata, modelID: modelID)
+        guard let updates = response.updates else {
+            throw HelperClientError.helperFailure(response.error ?? "The helper returned no update status.")
+        }
+        return updates
+    }
+
     func updateModel(modelID: String) async throws -> LocalModelStatus {
         try await perform(action: .updateModel, modelID: modelID).status
     }

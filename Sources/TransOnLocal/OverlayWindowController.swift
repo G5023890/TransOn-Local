@@ -156,11 +156,8 @@ struct OverlayView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             switch state {
-            case .loading(let targetLanguage):
+            case .loading:
                 VStack(alignment: .center, spacing: 16) {
-                    Text(targetLanguage)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     ProgressView()
                         .controlSize(.large)
                     Text("Translating...")

@@ -209,6 +209,15 @@ struct SettingsView: View {
                         }
                         .disabled(controller.isWorking)
 
+                        if controller.updateCheck.model.summary == "Installed, update state unknown" {
+                            Button {
+                                controller.repairModelMetadata()
+                            } label: {
+                                Label("Repair Metadata", systemImage: "wrench.and.screwdriver")
+                            }
+                            .disabled(controller.isWorking)
+                        }
+
                         if controller.updateCheck.model.status == .updateAvailable {
                             Button {
                                 controller.updateSelectedModel()
