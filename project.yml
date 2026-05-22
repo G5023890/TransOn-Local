@@ -5,7 +5,7 @@ settings:
   base:
     SWIFT_VERSION: 5.9
     CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 0.1.0
+    MARKETING_VERSION: 0.1.5
 targets:
   TransOn Local:
     type: application

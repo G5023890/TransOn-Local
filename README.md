@@ -55,13 +55,13 @@ TransOn Local - Russian (1m 12s)
 Default model:
 
 ```text
-GemmaX2-28-9B-v0.2.Q8_0.gguf
+qwen2.5-3b-instruct-q6_k.gguf
 ```
 
 Source:
 
 ```text
-mradermacher/GemmaX2-28-9B-v0.2-GGUF
+Qwen/Qwen2.5-3B-Instruct-GGUF
 ```
 
 Other quantized variants can be selected in the app.
@@ -95,7 +95,7 @@ NOTARY_PROFILE="transon-notary" \
 The package is written to:
 
 ```text
-dist/TransOn Local-0.1.0-Installer.pkg
+dist/TransOn Local-0.1.5-Installer.pkg
 ```
 
 The installer places `TransOn Local.app` in `/Applications`. The app contains the bundled universal runtime, but models are still downloaded on first use.
@@ -115,8 +115,8 @@ lipo -info "/Applications/TransOn Local.app/Contents/MacOS/TransOn Local"
 lipo -info "/Applications/TransOn Local.app/Contents/MacOS/TransOnLocalHelper"
 lipo -info "/Applications/TransOn Local.app/Contents/Resources/Runtime/llama.cpp/build/bin/llama-server"
 codesign --verify --deep --strict --verbose=2 "/Applications/TransOn Local.app"
-pkgutil --check-signature "dist/TransOn Local-0.1.0-Installer.pkg"
-spctl -a -vvv -t install "dist/TransOn Local-0.1.0-Installer.pkg"
+pkgutil --check-signature "dist/TransOn Local-0.1.5-Installer.pkg"
+spctl -a -vvv -t install "dist/TransOn Local-0.1.5-Installer.pkg"
 ```
 
 The runtime should not link against Homebrew libraries such as OpenSSL. It should use bundled `llama.cpp` libraries and system frameworks only.

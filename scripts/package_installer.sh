@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 export COPYFILE_DISABLE=1
+export COPY_EXTENDED_ATTRIBUTES_DISABLE=1
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
@@ -8,7 +9,7 @@ cd "$PROJECT_DIR"
 APP_NAME="${APP_NAME:-TransOn Local}"
 BUNDLE_ID="${BUNDLE_ID:-com.grigorym.TransOnLocal}"
 PKG_ID="${PKG_ID:-com.grigorym.TransOnLocal.pkg}"
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.1.5}"
 CONFIGURATION="${CONFIGURATION:-Release}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-Build/PackageDerivedData}"
 DIST_DIR="${DIST_DIR:-dist}"
@@ -107,10 +108,13 @@ sign_macho_files() {
 
 normalize_runtime_rpaths() {
   local root="$1"
-  local build_bin="$LLAMA_BUILD_DIR/bin"
+  local build_bin
+  build_bin="$(cd "$LLAMA_BUILD_DIR/bin" && pwd -P)"
   while IFS= read -r -d '' file; do
     if file "$file" | grep -Eq "Mach-O|dynamically linked shared library"; then
-      install_name_tool -delete_rpath "$build_bin" "$file" 2>/dev/null || true
+      while [[ "$(otool -l "$file")" == *"path $build_bin "* ]]; do
+        install_name_tool -delete_rpath "$build_bin" "$file" 2>/dev/null || break
+      done
       install_name_tool -add_rpath @executable_path "$file" 2>/dev/null || true
       install_name_tool -add_rpath @loader_path "$file" 2>/dev/null || true
     fi
@@ -206,10 +210,13 @@ build_app() {
   rm -f "$PACKAGE_ROOT/${APP_NAME}.app/Contents/Resources/TransOnLocalHelper"
   xattr -cr "$PACKAGE_ROOT/${APP_NAME}.app" 2>/dev/null || true
   find "$PACKAGE_ROOT" \( -name ".DS_Store" -o -name "._*" -o -name "*.gguf" \) -delete
+  normalize_runtime_rpaths "$PACKAGE_ROOT/${APP_NAME}.app/$RUNTIME_APP_DIR"
 
   sign_macho_files "$PACKAGE_ROOT/${APP_NAME}.app/Contents/MacOS"
   sign_macho_files "$PACKAGE_ROOT/${APP_NAME}.app/$RUNTIME_APP_DIR"
   codesign --force --deep --options runtime --timestamp --sign "$APP_SIGN_IDENTITY" "$PACKAGE_ROOT/${APP_NAME}.app"
+  xattr -cr "$PACKAGE_ROOT" 2>/dev/null || true
+  find "$PACKAGE_ROOT" \( -name ".DS_Store" -o -name "._*" -o -name "*.gguf" \) -delete
   codesign --verify --deep --strict --verbose=2 "$PACKAGE_ROOT/${APP_NAME}.app"
 }
 
@@ -247,6 +254,8 @@ README
 
 build_package() {
   rm -f "$COMPONENT_PKG" "$FINAL_PKG"
+  xattr -cr "$PACKAGE_ROOT" 2>/dev/null || true
+  find "$PACKAGE_ROOT" \( -name ".DS_Store" -o -name "._*" -o -name "*.gguf" \) -delete
 
   log "Building signed component package"
   pkgbuild \
@@ -254,6 +263,11 @@ build_package() {
     --install-location "/Applications" \
     --identifier "$PKG_ID" \
     --version "$VERSION" \
+    --filter "\.DS_Store$" \
+    --filter "/\._" \
+    --filter "\.gguf$" \
+    --filter "\.svn(/|$)" \
+    --filter "CVS(/|$)" \
     --sign "$PKG_SIGN_IDENTITY" \
     "$COMPONENT_PKG"
 
@@ -279,7 +293,6 @@ build_package() {
 
   pkgutil --check-signature "$FINAL_PKG"
   spctl -a -vvv -t install "$FINAL_PKG"
-  pkgutil --payload-files "$FINAL_PKG" | sed -n '1,60p'
 }
 
 resolve_signing

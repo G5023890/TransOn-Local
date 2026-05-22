@@ -2,7 +2,6 @@ import Foundation
 
 final class HelperClient {
     private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
 
     func status() async throws -> LocalModelStatus {
         try await perform(action: .status).status
@@ -14,6 +13,18 @@ final class HelperClient {
 
     func downloadModel(modelID: String) async throws -> LocalModelStatus {
         try await perform(action: .downloadModel, modelID: modelID).status
+    }
+
+    func checkUpdates(modelID: String) async throws -> UpdateCheckResult {
+        let response = try await perform(action: .checkUpdates, modelID: modelID)
+        guard let updates = response.updates else {
+            throw HelperClientError.helperFailure(response.error ?? "The helper returned no update status.")
+        }
+        return updates
+    }
+
+    func updateModel(modelID: String) async throws -> LocalModelStatus {
+        try await perform(action: .updateModel, modelID: modelID).status
     }
 
     func clearCache() async throws -> LocalModelStatus {
@@ -29,16 +40,42 @@ final class HelperClient {
     }
 
     private func perform(action: HelperAction, modelID: String? = nil, translation: TranslationRequest? = nil) async throws -> HelperResponse {
+        try Task.checkCancellation()
         guard let helperURL else {
             throw HelperClientError.helperMissing
         }
 
         let request = HelperRequest(action: action, modelID: modelID, translation: translation)
         let input = try encoder.encode(request)
+        let processHandle = CancellableProcess()
 
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let response = try Self.runHelperProcess(
+                            helperURL: helperURL,
+                            input: input,
+                            processHandle: processHandle
+                        )
+                        continuation.resume(returning: response)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        } onCancel: {
+            processHandle.cancel()
+        }
+    }
+
+    private static func runHelperProcess(
+        helperURL: URL,
+        input: Data,
+        processHandle: CancellableProcess
+    ) throws -> HelperResponse {
         let process = Process()
         process.executableURL = helperURL
-
         let stdin = Pipe()
         let stdout = Pipe()
         let stderr = Pipe()
@@ -48,7 +85,11 @@ final class HelperClient {
         process.standardOutput = stdout
         process.standardError = stderr
 
+        guard processHandle.set(process) else {
+            throw CancellationError()
+        }
         try process.run()
+        processHandle.markRunning()
         outputCollector.start()
         errorCollector.start()
 
@@ -58,6 +99,10 @@ final class HelperClient {
         outputCollector.stop()
         errorCollector.stop()
 
+        if processHandle.isCancelled {
+            throw CancellationError()
+        }
+
         let outputData = outputCollector.dataValue
         if outputData.isEmpty {
             let errorData = errorCollector.dataValue
@@ -65,7 +110,7 @@ final class HelperClient {
             throw HelperClientError.helperFailure(message?.isEmpty == false ? message! : "The helper produced no output.")
         }
 
-        let response = try decoder.decode(HelperResponse.self, from: outputData)
+        let response = try JSONDecoder().decode(HelperResponse.self, from: outputData)
         guard response.ok else {
             throw HelperClientError.helperFailure(response.error ?? response.status.detail)
         }
@@ -85,6 +130,45 @@ final class HelperClient {
         }
 
         return nil
+    }
+}
+
+private final class CancellableProcess: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var running = false
+    private var cancelRequested = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelRequested
+    }
+
+    func set(_ process: Process) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !cancelRequested else { return false }
+        self.process = process
+        return true
+    }
+
+    func markRunning() {
+        let processToCancel: Process?
+        lock.lock()
+        running = true
+        processToCancel = cancelRequested ? process : nil
+        lock.unlock()
+        processToCancel?.terminate()
+    }
+
+    func cancel() {
+        let processToCancel: Process?
+        lock.lock()
+        cancelRequested = true
+        processToCancel = running ? process : nil
+        lock.unlock()
+        processToCancel?.terminate()
     }
 }
 
